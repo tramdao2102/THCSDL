@@ -70,12 +70,13 @@ const ScoresManager = () => {
 
   const handleSaveScore = async (scoreData: Omit<Score, 'score_id' | 'student_name' | 'test_name' | 'teacher_name'>) => {
     // Tính lại total_score và grade
-    const totalScore = (scoreData.listening_score + scoreData.speaking_score + scoreData.reading_score + scoreData.writing_score) / 4;
+    const rawTotal = (scoreData.listening_score + scoreData.speaking_score + scoreData.reading_score + scoreData.writing_score) / 4;
+    const totalScore = Math.ceil(rawTotal * 2) / 2; // Làm tròn lên .0 hoặc .5
     const grade = calculateGrade(totalScore);
 
     const payload = {
       ...scoreData,
-      total_score: Math.round(totalScore * 100) / 100,
+      total_score: totalScore,
       grade
     };
 
@@ -240,7 +241,9 @@ const ScoresManager = () => {
                   <div className="flex items-center justify-between pt-2 border-t">
                     <div className="flex items-center gap-2">
                       <TrendingUp className="h-4 w-4 text-blue-600" />
-                      <span className="font-bold">Total: {score.total_score}</span>
+                      <span className="font-bold">
+                        Total: {(Math.ceil(score.total_score * 2) / 2).toFixed(1)}
+                      </span>
                     </div>
                     <Award className="h-5 w-5 text-yellow-500" />
                   </div>
@@ -297,7 +300,8 @@ const ScoreDialog = ({
   });
 
   const calculateTotal = () => {
-    return (formData.listening_score + formData.speaking_score + formData.reading_score + formData.writing_score) / 4;
+    const rawTotal = (formData.listening_score + formData.speaking_score + formData.reading_score + formData.writing_score) / 4;
+    return Math.ceil(rawTotal * 2) / 2; // Làm tròn lên .0 hoặc .5
   };
 
   const calculateGrade = (totalScore: number): string => {
