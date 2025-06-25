@@ -13,14 +13,11 @@ class Session {
           s.duration_minutes,
           s.topic,
           s.description,
-          s.teacher_id,
-          t.full_name as teacher_name,
           s.status,
           s.created_date,
           s.updated_date
         FROM sessions s
         JOIN classes c ON s.class_id = c.class_id
-        JOIN teachers t ON s.teacher_id = t.teacher_id
         ORDER BY s.session_date DESC, s.session_time DESC
       `);
       return result.rows;
@@ -41,14 +38,11 @@ class Session {
           s.duration_minutes,
           s.topic,
           s.description,
-          s.teacher_id,
-          t.full_name as teacher_name,
           s.status,
           s.created_date,
           s.updated_date
         FROM sessions s
         JOIN classes c ON s.class_id = c.class_id
-        JOIN teachers t ON s.teacher_id = t.teacher_id
         WHERE s.session_id = $1
       `, [id]);
       return result.rows[0];
@@ -65,16 +59,15 @@ class Session {
       duration_minutes,
       topic,
       description,
-      teacher_id,
       status
     } = sessionData;
 
     try {
       const result = await pool.query(`
-        INSERT INTO sessions (class_id, session_date, session_time, duration_minutes, topic, description, teacher_id, status)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO sessions (class_id, session_date, session_time, duration_minutes, topic, description, status)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *
-      `, [class_id, session_date, session_time, duration_minutes, topic, description, teacher_id, status || 'SCHEDULED']);
+      `, [class_id, session_date, session_time, duration_minutes, topic, description, status || 'SCHEDULED']);
       
       return result.rows[0];
     } catch (error) {
@@ -90,7 +83,6 @@ class Session {
       duration_minutes,
       topic,
       description,
-      teacher_id,
       status
     } = sessionData;
 
@@ -98,11 +90,11 @@ class Session {
       const result = await pool.query(`
         UPDATE sessions 
         SET class_id = $1, session_date = $2, session_time = $3, duration_minutes = $4,
-            topic = $5, description = $6, teacher_id = $7, status = $8, updated_date = CURRENT_TIMESTAMP
-        WHERE session_id = $9
+            topic = $5, description = $6, status = $7, updated_date = CURRENT_TIMESTAMP
+        WHERE session_id = $8
         RETURNING *
-      `, [class_id, session_date, session_time, duration_minutes, topic, description, teacher_id, status, id]);
-      
+      `, [class_id, session_date, session_time, duration_minutes, topic, description, status, id]);
+      if (!result.rows[0]) throw new Error("Session not found");
       return result.rows[0];
     } catch (error) {
       throw new Error(`Error updating session: ${error.message}`);
@@ -133,12 +125,11 @@ class Session {
           s.duration_minutes,
           s.topic,
           s.description,
-          s.teacher_id,
-          t.full_name as teacher_name,
-          s.status
+          s.status,
+          s.created_date,
+          s.updated_date
         FROM sessions s
         JOIN classes c ON s.class_id = c.class_id
-        JOIN teachers t ON s.teacher_id = t.teacher_id
         WHERE s.class_id = $1
         ORDER BY s.session_date DESC, s.session_time DESC
       `, [classId]);

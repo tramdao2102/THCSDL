@@ -14,17 +14,13 @@ import { useToast } from "@/hooks/use-toast";
 interface Payment {
   payment_id: number;
   student_id: number;
-  student_name: string;
-  enrollment_id?: number;
-  enrollment_class?: string;
   amount: number;
   payment_date: string;
   payment_method: string;
   transaction_id?: string;
   description?: string;
   status: string;
-  created_by?: number;
-  created_by_name?: string;
+  created_date?: string;
 }
 
 interface Student {
@@ -114,62 +110,37 @@ const PaymentManager = () => {
     fetchData();
   }, [toast]);
 
-  const handleSavePayment = async (paymentData: Omit<Payment, 'payment_id' | 'student_name' | 'enrollment_class'>) => {
+  const handleSavePayment = async (paymentData: Omit<Payment, 'payment_id'>) => {
     try {
       if (editingPayment) {
-        // Update existing payment
         const res = await fetch(`http://localhost:5000/api/payments/${editingPayment.payment_id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(paymentData)
         });
-
         if (!res.ok) throw new Error("Failed to update payment");
-        
         const savedPayment = await res.json();
-        
-        // Update local state with enriched data
-        const enrichedPayment = {
-          ...savedPayment,
-          student_name: students.find(s => s.student_id === savedPayment.student_id)?.full_name || '',
-          enrollment_class: enrollments.find(e => e.enrollment_id === savedPayment.enrollment_id)?.class_name || ''
-        };
-        
         setPayments(prev => prev.map(p =>
-          p.payment_id === savedPayment.payment_id ? enrichedPayment : p
+          p.payment_id === savedPayment.payment_id ? savedPayment : p
         ));
-        
         toast({
           title: "Payment Updated",
           description: "Payment information has been successfully updated."
         });
       } else {
-        // Create new payment
         const res = await fetch("http://localhost:5000/api/payments", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(paymentData)
         });
-
         if (!res.ok) throw new Error("Failed to create payment");
-        
         const savedPayment = await res.json();
-        
-        // Add student name and enrollment class for display
-        const enrichedPayment = {
-          ...savedPayment,
-          student_name: students.find(s => s.student_id === savedPayment.student_id)?.full_name || '',
-          enrollment_class: enrollments.find(e => e.enrollment_id === savedPayment.enrollment_id)?.class_name || ''
-        };
-        
-        setPayments(prev => [enrichedPayment, ...prev]);
-        
+        setPayments(prev => [savedPayment, ...prev]);
         toast({
           title: "Payment Added",
           description: "New payment has been successfully recorded."
         });
       }
-      
       setIsDialogOpen(false);
       setEditingPayment(null);
     } catch (error: any) {
@@ -208,12 +179,16 @@ const PaymentManager = () => {
     }
   };
 
-  const filteredPayments = payments.filter(payment =>
-    payment.student_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (payment.enrollment_class && payment.enrollment_class.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    payment.payment_method?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    payment.status?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredPayments = payments.filter(payment => {
+    const studentName = students.find(s => s.student_id === payment.student_id)?.full_name || '';
+    const className = enrollments.find(e => e.student_id === payment.student_id)?.class_name || '';
+    return (
+      studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      className.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      payment.payment_method?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      payment.status?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  });
 
   // Generate payment summaries by student
   const paymentSummaries = students.map(student => {
@@ -361,7 +336,9 @@ const PaymentManager = () => {
                       {filteredPayments.map((payment) => (
                         <TableRow key={payment.payment_id}>
                           <TableCell>{formatDate(payment.payment_date)}</TableCell>
-                          <TableCell className="font-medium">{payment.student_name}</TableCell>
+                          <TableCell className="font-medium">
+                            {students.find(s => s.student_id === payment.student_id)?.full_name || ''}
+                          </TableCell>
                           <TableCell className="font-semibold">{formatCurrency(payment.amount)}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
@@ -369,7 +346,9 @@ const PaymentManager = () => {
                               {payment.payment_method.replace('_', ' ')}
                             </div>
                           </TableCell>
-                          <TableCell>{payment.enrollment_class || 'N/A'}</TableCell>
+                          <TableCell>
+                            {enrollments.find(e => e.student_id === payment.student_id)?.class_name || 'N/A'}
+                          </TableCell>
                           <TableCell>
                             <Badge className={getStatusColor(payment.status)}>
                               {payment.status}
@@ -419,7 +398,9 @@ const PaymentManager = () => {
                     <CardHeader className="pb-3">
                       <div className="flex justify-between items-start">
                         <div>
-                          <CardTitle className="text-lg">{payment.student_name}</CardTitle>
+                          <CardTitle className="text-lg">
+                            {students.find(s => s.student_id === payment.student_id)?.full_name || ''}
+                          </CardTitle>
                           <p className="text-sm text-muted-foreground mt-1">
                             {formatDate(payment.payment_date)}
                           </p>
@@ -441,13 +422,15 @@ const PaymentManager = () => {
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      {payment.enrollment_class && (
+                      {enrollments.find(e => e.student_id === payment.student_id)?.class_name && (
                         <div className="flex items-center gap-2 text-sm">
                           <Calendar className="h-4 w-4 text-blue-600" />
-                          <span>Class: {payment.enrollment_class}</span>
+                          <span>
+                            Class: {enrollments.find(e => e.student_id === payment.student_id)?.class_name}
+                          </span>
                         </div>
                       )}
-                      
+
                       {payment.description && (
                         <div className="text-sm text-muted-foreground">
                           {payment.description}
@@ -595,12 +578,11 @@ const PaymentDialog = ({
   payment: Payment | null;
   students: Student[];
   enrollments: Enrollment[];
-  onSave: (data: Omit<Payment, 'payment_id' | 'student_name' | 'enrollment_class'>) => void;
+  onSave: (data: Omit<Payment, 'payment_id'>) => void;
   onClose: () => void;
 }) => {
   const [formData, setFormData] = useState({
     student_id: payment?.student_id || 0,
-    enrollment_id: payment?.enrollment_id,
     amount: payment?.amount || 0,
     payment_date: payment?.payment_date || new Date().toISOString().split('T')[0],
     payment_method: payment?.payment_method || 'CASH',
@@ -616,24 +598,20 @@ const PaymentDialog = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validation
     if (!formData.student_id || formData.student_id === 0) {
       alert('Please select a student');
       return;
     }
-    
     if (!formData.amount || formData.amount <= 0) {
       alert('Please enter a valid amount');
       return;
     }
-    
     if (!formData.payment_date.trim()) {
       alert('Please select a payment date');
       return;
     }
-    
-    onSave(formData as Omit<Payment, 'payment_id' | 'student_name' | 'enrollment_class'>);
+    // Gửi đúng các trường của bảng payments
+    onSave(formData);
   };
 
   return (
@@ -650,9 +628,7 @@ const PaymentDialog = ({
               const studentId = parseInt(value);
               setFormData(prev => ({ 
                 ...prev, 
-                student_id: studentId,
-                // Clear enrollment if student changes
-                enrollment_id: undefined
+                student_id: studentId
               }));
             }}
           >
@@ -669,30 +645,14 @@ const PaymentDialog = ({
           </Select>
         </div>
         
+        {/* Hiển thị enrollments nếu muốn, không lưu vào formData */}
         <div>
-          <Label htmlFor="enrollment_id">Class Enrollment (Optional)</Label>
-          <Select 
-            value={formData.enrollment_id?.toString() || ''} 
-            onValueChange={(value) => setFormData(prev => ({ ...prev, enrollment_id: parseInt(value) }))}
-            disabled={!formData.student_id || studentEnrollments.length === 0}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder={
-                !formData.student_id 
-                  ? "Select a student first" 
-                  : studentEnrollments.length === 0
-                    ? "No enrollments found"
-                    : "Select an enrollment"
-              } />
-            </SelectTrigger>
-            <SelectContent>
-              {studentEnrollments.map(enrollment => (
-                <SelectItem key={enrollment.enrollment_id} value={enrollment.enrollment_id.toString()}>
-                  {enrollment.class_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label>Class Enrollment</Label>
+          <div className="text-muted-foreground text-sm">
+            {studentEnrollments.length > 0
+              ? studentEnrollments.map(e => e.class_name).join(', ')
+              : 'No enrollments found'}
+          </div>
         </div>
         
         <div>
@@ -703,7 +663,8 @@ const PaymentDialog = ({
             step="1000"
             min="0"
             value={formData.amount}
-            onChange={(e) => setFormData(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))}
+            onChange={(e) => setFormData(prev => ({ ...prev, amount: parseFloat(e.target.value) || 0 }))
+            }
             required
             placeholder="Enter amount in VND"
           />

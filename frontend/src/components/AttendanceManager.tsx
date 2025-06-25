@@ -79,12 +79,12 @@ const AttendanceManager = () => {
       fetch("http://localhost:5000/api/students").then(res => res.json())
     ])
       .then(([sessionsData, attendanceData, summaryData, classesData, teachersData, studentsData]) => {
-        setSessions(sessionsData);
-        setAttendanceRecords(attendanceData);
-        setAttendanceSummaries(summaryData);
-        setClasses(classesData);
-        setTeachers(teachersData);
-        setStudents(studentsData);
+        setSessions(Array.isArray(sessionsData) ? sessionsData : []);
+        setAttendanceRecords(Array.isArray(attendanceData) ? attendanceData : []);
+        setAttendanceSummaries(Array.isArray(summaryData) ? summaryData : []);
+        setClasses(Array.isArray(classesData) ? classesData : []);
+        setTeachers(Array.isArray(teachersData) ? teachersData : []);
+        setStudents(Array.isArray(studentsData) ? studentsData : []);
       })
       .catch(() => toast({ title: "Error", description: "Failed to fetch data", variant: "destructive" }))
       .finally(() => setLoading(false));

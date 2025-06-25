@@ -10,14 +10,11 @@ class Attendance {
           a.student_id,
           s.full_name as student_name,
           a.attendance_status,
-          a.check_in_time,
-          a.check_out_time,
           a.notes,
-          a.marked_by,
-          t.full_name as marked_by_name
+          a.created_date,
+          a.updated_date
         FROM attendance a
         JOIN students s ON a.student_id = s.student_id
-        LEFT JOIN teachers t ON a.marked_by = t.teacher_id
         WHERE a.session_id = $1
         ORDER BY s.full_name
       `, [sessionId]);
@@ -36,10 +33,7 @@ class Attendance {
           a.student_id,
           s.full_name as student_name,
           a.attendance_status,
-          a.check_in_time,
-          a.check_out_time,
           a.notes,
-          a.marked_by,
           a.created_date,
           a.updated_date
         FROM attendance a
@@ -57,10 +51,7 @@ class Attendance {
       session_id,
       student_id,
       attendance_status,
-      check_in_time,
-      check_out_time,
-      notes,
-      marked_by
+      notes
     } = attendanceData;
 
     try {
@@ -74,21 +65,18 @@ class Attendance {
         // Update existing record
         const result = await pool.query(`
           UPDATE attendance 
-          SET attendance_status = $1, check_in_time = $2, check_out_time = $3, 
-              notes = $4, marked_by = $5, updated_date = CURRENT_TIMESTAMP
-          WHERE session_id = $6 AND student_id = $7
+          SET attendance_status = $1, notes = $2, updated_date = CURRENT_TIMESTAMP
+          WHERE session_id = $3 AND student_id = $4
           RETURNING *
-        `, [attendance_status, check_in_time, check_out_time, notes, marked_by, session_id, student_id]);
-        
+        `, [attendance_status, notes, session_id, student_id]);
         return result.rows[0];
       } else {
         // Create new record
         const result = await pool.query(`
-          INSERT INTO attendance (session_id, student_id, attendance_status, check_in_time, check_out_time, notes, marked_by)
-          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          INSERT INTO attendance (session_id, student_id, attendance_status, notes)
+          VALUES ($1, $2, $3, $4)
           RETURNING *
-        `, [session_id, student_id, attendance_status, check_in_time, check_out_time, notes, marked_by]);
-        
+        `, [session_id, student_id, attendance_status, notes]);
         return result.rows[0];
       }
     } catch (error) {
@@ -98,20 +86,15 @@ class Attendance {
 
   static async bulkCreateOrUpdate(attendanceDataArray) {
     const client = await pool.connect();
-    
     try {
       await client.query('BEGIN');
-      
       const results = [];
       for (const attendanceData of attendanceDataArray) {
         const {
           session_id,
           student_id,
           attendance_status,
-          check_in_time,
-          check_out_time,
-          notes,
-          marked_by
+          notes
         } = attendanceData;
 
         // Check if record exists
@@ -125,23 +108,20 @@ class Attendance {
           // Update existing record
           result = await client.query(`
             UPDATE attendance 
-            SET attendance_status = $1, check_in_time = $2, check_out_time = $3, 
-                notes = $4, marked_by = $5, updated_date = CURRENT_TIMESTAMP
-            WHERE session_id = $6 AND student_id = $7
+            SET attendance_status = $1, notes = $2, updated_date = CURRENT_TIMESTAMP
+            WHERE session_id = $3 AND student_id = $4
             RETURNING *
-          `, [attendance_status, check_in_time, check_out_time, notes, marked_by, session_id, student_id]);
+          `, [attendance_status, notes, session_id, student_id]);
         } else {
           // Create new record
           result = await client.query(`
-            INSERT INTO attendance (session_id, student_id, attendance_status, check_in_time, check_out_time, notes, marked_by)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO attendance (session_id, student_id, attendance_status, notes)
+            VALUES ($1, $2, $3, $4)
             RETURNING *
-          `, [session_id, student_id, attendance_status, check_in_time, check_out_time, notes, marked_by]);
+          `, [session_id, student_id, attendance_status, notes]);
         }
-        
         results.push(result.rows[0]);
       }
-      
       await client.query('COMMIT');
       return results;
     } catch (error) {
@@ -168,24 +148,43 @@ class Attendance {
     try {
       const result = await pool.query(`
         SELECT 
-          ats.summary_id,
-          ats.student_id,
-          s.full_name as student_name,
-          ats.class_id,
-          c.class_name,
-          ats.total_sessions,
-          ats.present_count,
-          ats.absent_count,
-          ats.late_count,
-          ats.excused_count,
-          ats.attendance_rate,
-          ats.last_updated
-        FROM attendance_summary ats
-        JOIN students s ON ats.student_id = s.student_id
-        JOIN classes c ON ats.class_id = c.class_id
-        ORDER BY ats.attendance_rate DESC, s.full_name
+          student_id,
+          student_name,
+          class_id,
+          class_name,
+          total_sessions,
+          present_count,
+          absent_count,
+          late_count,
+          excused_count,
+          attendance_rate
+        FROM attendance_summary
+        ORDER BY attendance_rate DESC, student_name
       `);
       return result.rows;
+    } catch (error) {
+      throw new Error(`Error fetching attendance summary: ${error.message}`);
+    }
+  }
+
+  static async getAttendanceSummaryByStudentAndClass(studentId, classId) {
+    try {
+      const result = await pool.query(`
+        SELECT 
+          student_id,
+          student_name,
+          class_id,
+          class_name,
+          total_sessions,
+          present_count,
+          absent_count,
+          late_count,
+          excused_count,
+          attendance_rate
+        FROM attendance_summary
+        WHERE student_id = $1 AND class_id = $2
+      `, [studentId, classId]);
+      return result.rows[0];
     } catch (error) {
       throw new Error(`Error fetching attendance summary: ${error.message}`);
     }
@@ -230,6 +229,28 @@ class Attendance {
       return result.rows[0];
     } catch (error) {
       throw new Error(`Error updating attendance summary: ${error.message}`);
+    }
+  }
+
+  static async findAll() {
+    try {
+      const result = await pool.query(`
+        SELECT 
+          a.attendance_id,
+          a.session_id,
+          a.student_id,
+          s.full_name as student_name,
+          a.attendance_status,
+          a.notes,
+          a.created_date,
+          a.updated_date
+        FROM attendance a
+        JOIN students s ON a.student_id = s.student_id
+        ORDER BY a.created_date DESC
+      `);
+      return result.rows;
+    } catch (error) {
+      throw new Error(`Error fetching all attendance records: ${error.message}`);
     }
   }
 }

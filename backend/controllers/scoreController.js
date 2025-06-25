@@ -33,11 +33,19 @@ const scoreController = {
   async createScore(req, res) {
     try {
       const scoreData = req.body;
-      
+
+      // Kiểm tra dữ liệu đầu vào
+      if (
+        typeof scoreData.student_id !== 'number' ||
+        typeof scoreData.test_id !== 'number'
+      ) {
+        return res.status(400).json({ error: 'IDs must be numbers' });
+      }
+
       // Validation
-      if (!scoreData.student_id || !scoreData.test_id || !scoreData.teacher_id) {
+      if (!scoreData.student_id || !scoreData.test_id) {
         return res.status(400).json({ 
-          error: 'Student ID, Test ID, and Teacher ID are required' 
+          error: 'Student ID and Test ID are required' 
         });
       }
 
@@ -178,12 +186,13 @@ const scoreController = {
           AVG(total_score) as average_score,
           MAX(total_score) as highest_score,
           MIN(total_score) as lowest_score,
-          COUNT(CASE WHEN grade = 'A' THEN 1 END) as grade_a_count,
-          COUNT(CASE WHEN grade = 'B+' THEN 1 END) as grade_b_plus_count,
-          COUNT(CASE WHEN grade = 'B' THEN 1 END) as grade_b_count,
-          COUNT(CASE WHEN grade = 'C+' THEN 1 END) as grade_c_plus_count,
-          COUNT(CASE WHEN grade = 'C' THEN 1 END) as grade_c_count,
-          COUNT(CASE WHEN grade = 'F' THEN 1 END) as grade_f_count
+          COUNT(CASE WHEN grade = 'Expert' THEN 1 END) as expert_count,
+          COUNT(CASE WHEN grade = 'Very Good' THEN 1 END) as very_good_count,
+          COUNT(CASE WHEN grade = 'Good' THEN 1 END) as good_count,
+          COUNT(CASE WHEN grade = 'Competent' THEN 1 END) as competent_count,
+          COUNT(CASE WHEN grade = 'Modest' THEN 1 END) as modest_count,
+          COUNT(CASE WHEN grade = 'Limited' THEN 1 END) as limited_count,
+          COUNT(CASE WHEN grade = 'Extremely Limited' THEN 1 END) as extremely_limited_count
         FROM scores
       `);
       

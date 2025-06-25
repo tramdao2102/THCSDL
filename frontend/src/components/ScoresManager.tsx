@@ -23,8 +23,6 @@ interface Score {
   total_score: number;
   grade: string;
   notes: string;
-  teacher_id: number;
-  teacher_name: string;
   created_date: string;
 }
 
@@ -37,38 +35,36 @@ const ScoresManager = () => {
   const [scores, setScores] = useState<Score[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [tests, setTests] = useState<any[]>([]);
-  const [teachers, setTeachers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Fetch scores, students, tests, teachers from backend
+  // Fetch scores, students, tests from backend
   useEffect(() => {
     setLoading(true);
     Promise.all([
       fetch("http://localhost:5000/api/scores").then(res => res.json()),
       fetch("http://localhost:5000/api/students").then(res => res.json()),
       fetch("http://localhost:5000/api/tests").then(res => res.json()),
-      fetch("http://localhost:5000/api/teachers").then(res => res.json())
     ])
-      .then(([scoresData, studentsData, testsData, teachersData]) => {
-        setScores(scoresData);
-        setStudents(studentsData);
-        setTests(testsData);
-        setTeachers(teachersData);
+      .then(([scoresData, studentsData, testsData]) => {
+        setScores(Array.isArray(scoresData) ? scoresData : []);
+        setStudents(Array.isArray(studentsData) ? studentsData : []);
+        setTests(Array.isArray(testsData) ? testsData : []);
       })
       .catch(() => toast({ title: "Error", description: "Failed to fetch data", variant: "destructive" }))
       .finally(() => setLoading(false));
   }, [toast]);
 
   const calculateGrade = (totalScore: number): string => {
-    if (totalScore >= 9.0) return 'A';
-    if (totalScore >= 8.0) return 'B+';
-    if (totalScore >= 7.0) return 'B';
-    if (totalScore >= 6.0) return 'C+';
-    if (totalScore >= 5.0) return 'C';
-    return 'F';
+    if (totalScore >= 8.5) return 'Expert';
+    if (totalScore >= 7.5) return 'Very Good';
+    if (totalScore >= 6.5) return 'Good';
+    if (totalScore >= 5.5) return 'Competent';
+    if (totalScore >= 4.5) return 'Modest';
+    if (totalScore >= 3.5) return 'Limited';
+    return 'Extremely Limited';
   };
 
-  const handleSaveScore = async (scoreData: Omit<Score, 'score_id' | 'student_name' | 'test_name' | 'teacher_name'>) => {
+  const handleSaveScore = async (scoreData: Omit<Score, 'score_id' | 'student_name' | 'test_name'>) => {
     // Tính lại total_score và grade
     const rawTotal = (scoreData.listening_score + scoreData.speaking_score + scoreData.reading_score + scoreData.writing_score) / 4;
     const totalScore = Math.ceil(rawTotal * 2) / 2; // Làm tròn lên .0 hoặc .5
@@ -165,7 +161,6 @@ const ScoresManager = () => {
             score={editingScore}
             students={students}
             tests={tests}
-            teachers={teachers}
             onSave={handleSaveScore}
             onClose={() => {
               setIsDialogOpen(false);
@@ -248,11 +243,6 @@ const ScoresManager = () => {
                     <Award className="h-5 w-5 text-yellow-500" />
                   </div>
                   
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <User className="h-4 w-4" />
-                    <span>Graded by: {score.teacher_name}</span>
-                  </div>
-                  
                   {score.notes && (
                     <div className="text-sm text-muted-foreground bg-gray-50 p-2 rounded">
                       <strong>Notes:</strong> {score.notes}
@@ -276,15 +266,13 @@ const ScoreDialog = ({
   score, 
   students,
   tests,
-  teachers,
   onSave, 
   onClose 
 }: { 
   score: Score | null;
   students: any[];
   tests: any[];
-  teachers: any[];
-  onSave: (data: Omit<Score, 'score_id' | 'student_name' | 'test_name' | 'teacher_name'>) => void;
+  onSave: (data: Omit<Score, 'score_id' | 'student_name' | 'test_name'>) => void;
   onClose: () => void;
 }) => {
   const [formData, setFormData] = useState({
@@ -295,7 +283,6 @@ const ScoreDialog = ({
     reading_score: score?.reading_score || 0,
     writing_score: score?.writing_score || 0,
     notes: score?.notes || "",
-    teacher_id: score?.teacher_id || 0,
     created_date: score?.created_date || new Date().toISOString().split('T')[0]
   });
 
@@ -305,12 +292,13 @@ const ScoreDialog = ({
   };
 
   const calculateGrade = (totalScore: number): string => {
-    if (totalScore >= 9.0) return 'A';
-    if (totalScore >= 8.0) return 'B+';
-    if (totalScore >= 7.0) return 'B';
-    if (totalScore >= 6.0) return 'C+';
-    if (totalScore >= 5.0) return 'C';
-    return 'F';
+    if (totalScore >= 8.5) return 'Expert';
+    if (totalScore >= 7.5) return 'Very Good';
+    if (totalScore >= 6.5) return 'Good';
+    if (totalScore >= 5.5) return 'Competent';
+    if (totalScore >= 4.5) return 'Modest';
+    if (totalScore >= 3.5) return 'Limited';
+    return 'Extremely Limited';
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -424,22 +412,6 @@ const ScoreDialog = ({
             <span className="font-medium">Grade:</span>
             <span className="text-lg font-bold">{grade}</span>
           </div>
-        </div>
-        
-        <div>
-          <Label htmlFor="teacher_id">Grading Teacher</Label>
-          <Select value={formData.teacher_id.toString()} onValueChange={(value) => setFormData(prev => ({ ...prev, teacher_id: parseInt(value) }))}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select a teacher" />
-            </SelectTrigger>
-            <SelectContent>
-              {teachers.map(teacher => (
-                <SelectItem key={teacher.teacher_id} value={teacher.teacher_id.toString()}>
-                  {teacher.full_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </div>
         
         <div>

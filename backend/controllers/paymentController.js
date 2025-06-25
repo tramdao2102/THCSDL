@@ -42,9 +42,8 @@ const paymentController = {
       }
 
       // Set default values
-      paymentData.payment_method = paymentData.payment_method || 'CASH';
+      paymentData.payment_method = paymentData.payment_method || 'BANK_TRANSFER';
       paymentData.status = paymentData.status || 'COMPLETED';
-      paymentData.created_by = paymentData.created_by || 1; // Default to admin user
 
       const newPayment = await Payment.create(paymentData);
       res.status(201).json(newPayment);
